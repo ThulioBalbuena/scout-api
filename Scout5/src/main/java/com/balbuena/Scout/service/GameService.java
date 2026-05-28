@@ -4,11 +4,18 @@ import com.balbuena.Scout.dto.Response;
 import com.balbuena.Scout.exception.ScoutException;
 import com.balbuena.Scout.model.GamePhase;
 import com.balbuena.Scout.model.GameState;
+import com.balbuena.Scout.model.Player;
+import com.balbuena.Scout.repository.AuctionBidRepository;
 import com.balbuena.Scout.repository.GameStateRepository;
+import com.balbuena.Scout.repository.MatchRepository;
+import com.balbuena.Scout.repository.PlayerRepository;
+import com.balbuena.Scout.repository.PresidentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +27,10 @@ public class GameService {
     };
 
     private final GameStateRepository gameStateRepository;
+    private final AuctionBidRepository auctionBidRepository;
+    private final MatchRepository matchRepository;
+    private final PlayerRepository playerRepository;
+    private final PresidentRepository presidentRepository;
 
     public GameState getGameState() {
         return gameStateRepository.findById(1L)
@@ -106,6 +117,34 @@ public class GameService {
         state.setPhase(GamePhase.FINISHED);
         gameStateRepository.save(state);
         log.info("🏁 Campeonato encerrado!");
+        return buildResponse(state);
+    }
+
+    @Transactional
+    public Response.GameState resetSeason() {
+        auctionBidRepository.deleteAll();
+        matchRepository.deleteAll();
+
+        List<Player> players = playerRepository.findAll();
+        for (Player player : players) {
+            player.setPresident(null);
+            player.setAvailable(true);
+            player.setGoalsScored(0);
+            player.setGoalsConceded(0);
+            player.setMatchesPlayed(0);
+        }
+        playerRepository.saveAll(players);
+
+        presidentRepository.deleteAll();
+
+        GameState state = getGameState();
+        state.setPhase(GamePhase.REGISTRATION);
+        state.setCurrentRound(0);
+        state.setCurrentAuctionPlayerIndex(0);
+        state.setTotalRounds(6);
+        gameStateRepository.save(state);
+
+        log.info("Nova temporada iniciada. Estado resetado para REGISTRATION");
         return buildResponse(state);
     }
 

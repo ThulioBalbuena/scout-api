@@ -67,4 +67,10 @@ public class GameController {
         Response.GameState state = gameService.finishChampionship();
         return ResponseEntity.ok(Response.ApiMessage.of("🏁 Campeonato encerrado! Consulte os relatorios.", state));
     }
+    @PostMapping("/reset")
+    @Operation(summary = "Iniciar nova temporada", description = "Limpa presidentes, lances, partidas, estatisticas dos jogadores e volta para REGISTRATION.")
+    public ResponseEntity<Response.ApiMessage> resetSeason() {
+        Response.GameState state = gameService.resetSeason();
+        return ResponseEntity.ok(Response.ApiMessage.of("Nova temporada iniciada!", state));
+    }
 }   
