@@ -85,9 +85,6 @@
 			</resource>
 			<resource>
 				<directory>dev-tools</directory>
-				<includes>
-					<include>dev-ui.html</include>   <!--inclui o arquivo dev-ui.html, que é o arquivo html para testar a api (não versionado)-->
-				</includes>
 				<targetPath>static</targetPath>
 				<filtering>false</filtering>
 			</resource>
@@ -116,9 +113,9 @@
 						</goals>
 						<configuration>
 							<rules>
-								<requireJavaVersion>   <!--verifica se o java está na versão 21(pode dar erro se o usuario estiver com a versão errada(ex: 25))-->
-									<version>[21,22)</version>
-									<message>Este projeto deve ser executado com JDK 21. Ajuste o JAVA_HOME para uma instalacao Java 21.</message>
+								<requireJavaVersion>
+									<version>[21,)</version>
+									<message>Este projeto deve ser executado com JDK 21 ou superior.</message>
 								</requireJavaVersion>
 							</rules>
 						</configuration>
