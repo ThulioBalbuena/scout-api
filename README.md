@@ -6,11 +6,8 @@ Scout é uma aplicação full stack para um fantasy game de futebol, inspirado e
 
 - Java 21
 - Spring Boot 4
-- Spring Web
-- Spring Data JPA / Hibernate
-- Bean Validation
 - PostgreSQL 16
-- SpringDoc OpenAPI / Swagger UI
+- Swagger UI
 - Maven Wrapper
 - Lombok
 - React 19
@@ -72,7 +69,6 @@ Serviços disponíveis:
 - Frontend: `http://localhost:5173`
 - API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
-- OpenAPI JSON: `http://localhost:8080/api-docs`
 
 Para parar os containers:
 
@@ -174,9 +170,3 @@ Frontend:
 cd Scout-front
 npm run build
 ```
-
-## Observações
-
-- O banco usado pelo Docker Compose é PostgreSQL.
-- O backend também inclui H2 como dependência runtime, mas a configuração padrão espera as variáveis do PostgreSQL.
-- O Swagger UI é a forma mais prática de explorar os contratos completos da API.
