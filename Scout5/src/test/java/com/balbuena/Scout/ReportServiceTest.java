@@ -45,7 +45,6 @@ class ReportServiceTest {
         p.setLosses(losses);
         p.setGoalsFor(goalsFor);
         p.setGoalsAgainst(goalsAgainst);
-        p.setGoalDifference(goalsFor - goalsAgainst);
         return p;
     }
 
