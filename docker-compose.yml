@@ -40,5 +40,16 @@ services:
     depends_on:
       - backend
 
+  jenkins:
+    image: jenkins/jenkins:latest-jdk21
+    container_name: scout-jenkins
+    ports:
+      - "${JENKINS_PORT:-8081}:8080"
+    depends_on:
+      - backend
+      - frontend
+      - postgres
+
 volumes:
   scout_data:
+  jenkins_data:
