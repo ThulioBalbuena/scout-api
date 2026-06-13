@@ -4,6 +4,7 @@ pipeline {
     stage('Backend Tests') {
       steps {
         dir('Scout5') {
+          sh 'chmod +x ./mvnw'
           sh './mvnw test'
         }
       }
@@ -18,6 +19,7 @@ pipeline {
     stage('Build Backend') {
       steps {
         dir('Scout5') {
+          sh 'chmod +x ./mvnw'
           sh './mvnw package -DskipTests'
         }
       }
