@@ -168,5 +168,64 @@ Frontend:
 
 ```bash
 cd Scout-front
+npm install
 npm run build
+```
+
+## CI/CD
+
+O projeto utiliza Jenkins para integração contínua.
+
+A pipeline executa etapas de validação, testes e build, incluindo:
+
+- Testes automatizados do backend;
+- Validação da estrutura principal do projeto;
+- Build do backend;
+- Build do frontend.
+
+O arquivo de configuração da pipeline está disponível em:
+
+```text
+Jenkinsfile
+```
+
+## Documentação do Projeto
+
+A documentação complementar do projeto está disponível na pasta `docs/`.
+
+Principais documentos:
+
+- `docs/historias-usuario.md`: histórias de usuário do projeto;
+- `docs/rastreabilidade.md`: rastreabilidade entre histórias, issues, pull requests e testes;
+- `docs/metodologia.md`: metodologia de trabalho adotada pela equipe;
+- `docs/processo.md`: organização do fluxo de desenvolvimento;
+- `docs/uso-ia.md`: registro do uso de Inteligência Artificial;
+- `docs/validacao-manual.md`: validação manual da API.
+
+## Uso de Inteligência Artificial
+
+Durante o desenvolvimento, a equipe utilizou ferramentas de Inteligência Artificial como apoio para organização, documentação, melhorias de interface e pequenas correções no projeto.
+
+Foram utilizados principalmente os seguintes modelos:
+
+- Codex 5.5, com nível de raciocínio muito alto;
+- ChatGPT 5.5, com nível de raciocínio alto.
+
+A IA foi utilizada como ferramenta auxiliar. As respostas foram revisadas, adaptadas e validadas pela equipe antes de serem incorporadas ao projeto.
+
+O uso de IA apoiou principalmente:
+
+- Melhorias no frontend;
+- Sugestões de organização da interface;
+- Apoio na criação das histórias de usuário;
+- Escrita e revisão de documentação;
+- Interpretação de erros de testes e pipeline;
+- Pequenas correções no código e no fluxo do projeto.
+
+A IA não foi utilizada para substituir a implementação completa do projeto. As decisões finais, validações, testes, commits e pull requests foram feitos pela equipe.
+
+O registro completo do uso de IA, incluindo modelos, finalidades, prompts utilizados e avaliação dos resultados, está disponível em:
+
+```text
+docs/uso-ia.md
 ```
