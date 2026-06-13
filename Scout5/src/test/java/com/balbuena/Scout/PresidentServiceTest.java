@@ -43,7 +43,8 @@ class PresidentServiceTest {
     void create_cadastraPresidenteValido() {
         Request.PresidentCreate request = new Request.PresidentCreate(
                 "Eduardo",
-                "eduardo@test.com"
+                "eduardo@test.com",
+                "123456"
         );
 
         President savedPresident = President.builder()
@@ -78,14 +79,15 @@ class PresidentServiceTest {
     void create_recusaEmailDuplicado() {
         Request.PresidentCreate request = new Request.PresidentCreate(
                 "Eduardo",
-                "eduardo@test.com"
+                "eduardo@test.com",
+                "123456"
         );
 
         when(presidentRepository.existsByEmail("eduardo@test.com")).thenReturn(true);
 
         assertThatThrownBy(() -> presidentService.create(request))
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Email ja cadastrado");
+                .hasMessageContaining("Email is already registered");
 
         verify(gameService).validatePhase(GamePhase.REGISTRATION);
         verify(presidentRepository, never()).existsByName("Eduardo");
@@ -97,7 +99,8 @@ class PresidentServiceTest {
     void create_recusaNomeDuplicado() {
         Request.PresidentCreate request = new Request.PresidentCreate(
                 "Eduardo",
-                "eduardo@test.com"
+                "eduardo@test.com",
+                "123456"
         );
 
         when(presidentRepository.existsByEmail("eduardo@test.com")).thenReturn(false);
@@ -105,7 +108,7 @@ class PresidentServiceTest {
 
         assertThatThrownBy(() -> presidentService.create(request))
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Nome ja cadastrado");
+                .hasMessageContaining("President name is already registered");
 
         verify(gameService).validatePhase(GamePhase.REGISTRATION);
         verify(presidentRepository, never()).save(any(President.class));
@@ -137,6 +140,6 @@ class PresidentServiceTest {
 
         assertThatThrownBy(() -> presidentService.findById(99L))
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("President nao encontrado: ID 99");
+                .hasMessageContaining("President not found: ID 99");
     }
 }

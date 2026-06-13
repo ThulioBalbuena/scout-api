@@ -70,7 +70,7 @@ class ChampionshipServiceTest {
 
         assertThatThrownBy(() -> championshipService.generateSchedule())
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Tabela de jogos ja foi gerada");
+                .hasMessageContaining("The championship schedule has already been generated");
 
         verify(gameService).validatePhase(GamePhase.CHAMPIONSHIP, GamePhase.TRANSFER_WINDOW);
         verify(presidentRepository, never()).findAll();
@@ -87,7 +87,7 @@ class ChampionshipServiceTest {
 
         assertThatThrownBy(() -> championshipService.generateSchedule())
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Necessario ao menos 2 presidents");
+                .hasMessageContaining("At least 2 presidents are required to generate the schedule");
 
         verify(gameService).validatePhase(GamePhase.CHAMPIONSHIP, GamePhase.TRANSFER_WINDOW);
         verify(matchRepository, never()).saveAll(anyList());
@@ -137,7 +137,7 @@ class ChampionshipServiceTest {
 
         assertThatThrownBy(() -> championshipService.simulateRound(99))
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Rodada 99 nao encontrada ou ja simulada");
+                .hasMessageContaining("Round 99 was not found or has already been played");
 
         verify(gameService).validatePhase(GamePhase.CHAMPIONSHIP, GamePhase.TRANSFER_WINDOW);
         verify(matchRepository, never()).save(any(Match.class));

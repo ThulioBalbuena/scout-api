@@ -110,7 +110,7 @@ class AuctionServiceTest {
 
         assertThatThrownBy(() -> auctionService.placeBid(player.getId(), new Request.PlaceBid(1L, 29.0)))
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Lance minimo");
+                .hasMessageContaining("minimum bid");
 
         verify(bidRepository, never()).save(any());
     }
@@ -145,7 +145,7 @@ class AuctionServiceTest {
                 .phase(GamePhase.DRAFT_AUCTION)
                 .currentAuctionPlayerIndex(0)
                 .build());
-        when(playerRepository.findByAuctionPlayerTrue()).thenReturn(List.of(player));
+        when(playerRepository.findByName("Hulk")).thenReturn(Optional.of(player));
     }
 
     private Player player() {

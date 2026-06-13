@@ -98,7 +98,7 @@ class Tarefa4MockTest {
         // ACT & ASSERT — serviço deve recusar gerar tabela duplicada
         assertThatThrownBy(() -> championshipService.generateSchedule())
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("ja foi gerada");
+                .hasMessageContaining("already been generated");
 
         verify(matchRepository, times(1)).count();
         verify(matchRepository, never()).saveAll(any()); // saveAll nunca deve ser chamado

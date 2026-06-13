@@ -4,7 +4,11 @@ import com.balbuena.Scout.dto.Response;
 import com.balbuena.Scout.exception.ScoutException;
 import com.balbuena.Scout.model.GamePhase;
 import com.balbuena.Scout.model.GameState;
+import com.balbuena.Scout.repository.AuctionBidRepository;
 import com.balbuena.Scout.repository.GameStateRepository;
+import com.balbuena.Scout.repository.MatchRepository;
+import com.balbuena.Scout.repository.PlayerRepository;
+import com.balbuena.Scout.repository.PresidentRepository;
 import com.balbuena.Scout.service.GameService;
 
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +31,18 @@ class GameServiceTest {
 
     @Mock
     private GameStateRepository gameStateRepository;
+
+    @Mock
+    private AuctionBidRepository auctionBidRepository;
+
+    @Mock
+    private MatchRepository matchRepository;
+
+    @Mock
+    private PlayerRepository playerRepository;
+
+    @Mock
+    private PresidentRepository presidentRepository;
 
     @InjectMocks
     private GameService gameService;
@@ -63,6 +79,7 @@ class GameServiceTest {
         void advanceToAuction() {
             when(gameStateRepository.findById(1L)).thenReturn(Optional.of(makeState(GamePhase.REGISTRATION))); //faz a busca pelo estado  
             when(gameStateRepository.save(any())).thenAnswer(i -> i.getArgument(0)); //salva o estado (IA ajudou aqui,sem isso pode retornar null e quebrar o teste)
+            when(presidentRepository.count()).thenReturn(10L);
 
             Response.GameState result = gameService.advanceToAuctionPhase(); //armazena o resultado da busca
 
@@ -256,6 +273,30 @@ class GameServiceTest {
 
             assertThatThrownBy(() -> gameService.finishChampionship())
                     .isInstanceOf(ScoutException.class);
+        }
+
+        @Test
+        @DisplayName("20 - advanceToAuctionPhase exige ao menos 10 presidentes")
+        void advanceToAuction_poucosPresidentes_lancaExcecao() {
+            when(gameStateRepository.findById(1L))
+                    .thenReturn(Optional.of(makeState(GamePhase.REGISTRATION)));
+            when(presidentRepository.count()).thenReturn(9L);
+
+            assertThatThrownBy(() -> gameService.advanceToAuctionPhase())
+                    .isInstanceOf(ScoutException.class)
+                    .hasMessageContaining("At least 10 presidents");
+        }
+
+        @Test
+        @DisplayName("21 - finishChampionship exige todas as partidas finalizadas")
+        void finishChampionship_partidasPendentes_lancaExcecao() {
+            when(gameStateRepository.findById(1L))
+                    .thenReturn(Optional.of(makeState(GamePhase.CHAMPIONSHIP)));
+            when(matchRepository.countByPlayedFalse()).thenReturn(1L);
+
+            assertThatThrownBy(() -> gameService.finishChampionship())
+                    .isInstanceOf(ScoutException.class)
+                    .hasMessageContaining("All championship matches");
         }
     }
 }

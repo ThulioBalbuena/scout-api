@@ -9,6 +9,7 @@ import com.balbuena.Scout.model.President;
 import com.balbuena.Scout.repository.PlayerRepository;
 import com.balbuena.Scout.repository.PresidentRepository;
 import com.balbuena.Scout.service.DraftLotteryService;
+import com.balbuena.Scout.service.ChampionshipService;
 import com.balbuena.Scout.service.GameService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,9 @@ import static org.mockito.Mockito.when;
 class DraftLotteryServiceTest {
 
     @Mock
+    private ChampionshipService championshipService;
+
+    @Mock
     private PresidentRepository presidentRepository;
 
     @Mock
@@ -38,7 +42,6 @@ class DraftLotteryServiceTest {
 
     @Mock
     private GameService gameService;
-
     @InjectMocks
     private DraftLotteryService draftLotteryService;
 
@@ -64,9 +67,9 @@ class DraftLotteryServiceTest {
         verify(gameService).validatePhase(GamePhase.DRAFT_LOTTERY);
         verify(playerRepository, times(5)).save(org.mockito.ArgumentMatchers.any(Player.class));
 
-        assertThat(result).contains("Resultado do Sorteio");
+        assertThat(result).contains("Lottery result");
         assertThat(result).contains("Eduardo");
-        assertThat(result).contains("Sorteio concluido");
+        assertThat(result).contains("Lottery completed");
 
         assertThat(goalkeeper.getPresident()).isSameAs(president);
         assertThat(defender.getPresident()).isSameAs(president);
@@ -88,7 +91,7 @@ class DraftLotteryServiceTest {
 
         assertThatThrownBy(() -> draftLotteryService.runLottery())
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Nenhum president cadastrado");
+                .hasMessageContaining("No presidents are registered");
 
         verify(gameService).validatePhase(GamePhase.DRAFT_LOTTERY);
     }
@@ -104,7 +107,7 @@ class DraftLotteryServiceTest {
 
         assertThatThrownBy(() -> draftLotteryService.runLottery())
                 .isInstanceOf(ScoutException.class)
-                .hasMessageContaining("Nao ha jogadores disponiveis para sorteio");
+                .hasMessageContaining("There are no players available for the lottery");
 
         verify(gameService).validatePhase(GamePhase.DRAFT_LOTTERY);
     }
@@ -127,8 +130,8 @@ class DraftLotteryServiceTest {
         verify(gameService).validatePhase(GamePhase.DRAFT_LOTTERY);
         verify(gameService).advanceToChampionship();
 
-        assertThat(result).contains("Todos os times ja estao completos");
-        assertThat(result).contains("Campeonato iniciado");
+        assertThat(result).contains("All squads were already complete. The championship has started.");
+        assertThat(result).contains("The championship has started");
     }
 
     @Test
