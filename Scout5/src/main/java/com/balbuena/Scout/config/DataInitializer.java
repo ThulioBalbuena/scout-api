@@ -6,6 +6,7 @@ import com.balbuena.Scout.model.Player;
 import com.balbuena.Scout.model.Position;
 import com.balbuena.Scout.repository.GameStateRepository;
 import com.balbuena.Scout.repository.PlayerRepository;
+import com.balbuena.Scout.service.GameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -26,9 +27,28 @@ public class DataInitializer implements CommandLineRunner {
         if (playerRepository.count() == 0) {
             initializePlayers();
         }
+        ensureAuctionPlayers();
         if (gameStateRepository.count() == 0) {
             initializeGameState();
         }
+    }
+
+    private void ensureAuctionPlayers() {
+        if (playerRepository.findByName("Memphis Depay").isEmpty()) {
+            playerRepository.save(Player.builder()
+                    .name("Memphis Depay")
+                    .position(Position.FORWARD)
+                    .value(21.0)
+                    .auctionPlayer(true)
+                    .available(true)
+                    .build());
+        }
+
+        List<Player> players = playerRepository.findAll();
+        for (Player player : players) {
+            player.setAuctionPlayer(GameService.AUCTION_PLAYER_NAMES.contains(player.getName()));
+        }
+        playerRepository.saveAll(players);
     }
 
     private void initializePlayers() {
@@ -103,7 +123,7 @@ public class DataInitializer implements CommandLineRunner {
         );
 
         playerRepository.saveAll(players);
-        log.info("✅ {} jogadores cadastrados com sucesso!", players.size());
+        log.info("{} players initialized", players.size());
     }
 
     private void initializeGameState() {
@@ -112,9 +132,9 @@ public class DataInitializer implements CommandLineRunner {
                 .phase(GamePhase.REGISTRATION)
                 .currentRound(0)
                 .currentAuctionPlayerIndex(0)
-                .totalRounds(6)
+                .totalRounds(0)
                 .build();
         gameStateRepository.save(state);
-        log.info("✅ Estado do jogo inicializado: fase {}", state.getPhase());
+        log.info("Game state initialized in phase {}", state.getPhase());
     }
 }

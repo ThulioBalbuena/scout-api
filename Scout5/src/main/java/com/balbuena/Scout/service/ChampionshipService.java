@@ -29,29 +29,54 @@ public class ChampionshipService {
         gameService.validatePhase(GamePhase.CHAMPIONSHIP, GamePhase.TRANSFER_WINDOW);
 
         if (matchRepository.count() > 0) {
-            throw new ScoutException("Tabela de jogos ja foi gerada.");
+            throw new ScoutException("The championship schedule has already been generated");
         }
 
         List<President> presidents = presidentRepository.findAll();
         if (presidents.size() < 2) {
-            throw new ScoutException("Necessario ao menos 2 presidents.");
+            throw new ScoutException("At least 2 presidents are required to generate the schedule");
+        }
+
+        List<President> rotation = new ArrayList<>(presidents);
+        if (rotation.size() % 2 != 0) {
+            rotation.add(null);
         }
 
         List<Match> matches = new ArrayList<>();
-        int round = 1;
+        int roundsPerLeg = rotation.size() - 1;
 
-        for (int i = 0; i < presidents.size(); i++) {
-            for (int j = i + 1; j < presidents.size(); j++) {
-                matches.add(Match.builder().roundNumber(round)
-                        .homePresident(presidents.get(i)).awayPresident(presidents.get(j)).build());
-                matches.add(Match.builder().roundNumber(round + 1)
-                        .homePresident(presidents.get(j)).awayPresident(presidents.get(i)).build());
-                round++;
+        for (int round = 0; round < roundsPerLeg; round++) {
+            for (int pairing = 0; pairing < rotation.size() / 2; pairing++) {
+                President home = rotation.get(pairing);
+                President away = rotation.get(rotation.size() - 1 - pairing);
+                if (home == null || away == null) {
+                    continue;
+                }
+                if (round % 2 != 0) {
+                    President swap = home;
+                    home = away;
+                    away = swap;
+                }
+
+                matches.add(Match.builder()
+                        .roundNumber(round + 1)
+                        .homePresident(home)
+                        .awayPresident(away)
+                        .build());
+                matches.add(Match.builder()
+                        .roundNumber(round + 1 + roundsPerLeg)
+                        .homePresident(away)
+                        .awayPresident(home)
+                        .build());
             }
+
+            President last = rotation.remove(rotation.size() - 1);
+            rotation.add(1, last);
         }
 
         matchRepository.saveAll(matches);
-        log.info("📅 {} partidas geradas em {} rodadas", matches.size(), round - 1);
+        gameService.updateChampionshipRounds(roundsPerLeg * 2);
+        log.info("{} matches generated across {} rounds", matches.size(), roundsPerLeg * 2);
         return matches.stream().map(this::toMatchResponse).collect(Collectors.toList());
     }
 
@@ -61,7 +86,7 @@ public class ChampionshipService {
 
         List<Match> roundMatches = matchRepository.findByRoundNumberAndPlayedFalse(roundNumber);
         if (roundMatches.isEmpty()) {
-            throw new ScoutException("Rodada " + roundNumber + " nao encontrada ou ja simulada.");
+            throw new ScoutException("Round " + roundNumber + " was not found or has already been played");
         }
 
         Random random = new Random();
@@ -94,6 +119,9 @@ public class ChampionshipService {
         GameState state = gameService.getGameState();
         if (roundNumber > state.getCurrentRound()) {
             state.setCurrentRound(roundNumber);
+        }
+        if (matchRepository.countByPlayedFalse() == 0) {
+            gameService.finishChampionship();
         }
 
         return results;
@@ -177,14 +205,16 @@ public class ChampionshipService {
     private Response.Match toMatchResponse(Match m) {
         String result = null;
         if (m.isPlayed()) {
-            if      (m.getHomeGoals() > m.getAwayGoals()) result = m.getHomePresident().getName() + " venceu";
-            else if (m.getHomeGoals() < m.getAwayGoals()) result = m.getAwayPresident().getName() + " venceu";
-            else result = "Empate";
+            if      (m.getHomeGoals() > m.getAwayGoals()) result = m.getHomePresident().getClubName() + " won";
+            else if (m.getHomeGoals() < m.getAwayGoals()) result = m.getAwayPresident().getClubName() + " won";
+            else result = "Draw";
         }
         return Response.Match.builder()
                 .id(m.getId()).roundNumber(m.getRoundNumber())
                 .homePresident(m.getHomePresident().getName())
                 .awayPresident(m.getAwayPresident().getName())
+                .homeClub(m.getHomePresident().getClubName())
+                .awayClub(m.getAwayPresident().getClubName())
                 .homeGoals(m.getHomeGoals()).awayGoals(m.getAwayGoals())
                 .played(m.isPlayed()).result(result).build();
     }

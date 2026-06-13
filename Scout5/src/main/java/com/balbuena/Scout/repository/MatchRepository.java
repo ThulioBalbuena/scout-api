@@ -10,4 +10,5 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     List<Match> findByRoundNumber(int roundNumber);
     List<Match> findByRoundNumberAndPlayedFalse(int roundNumber);
     List<Match> findByHomePresidentIdOrAwayPresidentId(Long homeId, Long awayId);
+    long countByPlayedFalse();
 }

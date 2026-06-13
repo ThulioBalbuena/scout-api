@@ -34,7 +34,7 @@ public class PlayerService {
 
     public Player getPlayer(Long id) {
         return playerRepository.findById(id)
-                .orElseThrow(() -> new ScoutException("Jogador nao encontrado: ID " + id));
+                .orElseThrow(() -> new ScoutException("Player not found: ID " + id));
     }
 
     public Response.Player toResponse(Player p) {

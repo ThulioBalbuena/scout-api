@@ -26,6 +26,7 @@ public class Response {
         public Long id;
         public String name;
         public String email;
+        public String clubName;
         public Double budget;
         public Double usedBudget;
         public boolean teamComplete;
@@ -47,6 +48,8 @@ public class Response {
         public int roundNumber;
         public String homePresident;
         public String awayPresident;
+        public String homeClub;
+        public String awayClub;
         public Integer homeGoals;
         public Integer awayGoals;
         public boolean played;
@@ -67,6 +70,7 @@ public class Response {
     public static class Standing {
         public int position;
         public String presidentName;
+        public String clubName;
         public int points;
         public int wins;
         public int draws;

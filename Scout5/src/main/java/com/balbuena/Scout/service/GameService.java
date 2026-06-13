@@ -22,9 +22,10 @@ import java.util.List;
 @Slf4j
 public class GameService {
 
-    private static final String[] AUCTION_PLAYER_NAMES = {
-        "Hulk", "Memphis Depay", "Arrascaeta", "Vitor Roque", "Neymar"
-    };
+    public static final int MINIMUM_PRESIDENTS = 10;
+    public static final List<String> AUCTION_PLAYER_NAMES = List.of(
+            "Hulk", "Memphis Depay", "Arrascaeta", "Vitor Roque", "Neymar"
+    );
 
     private final GameStateRepository gameStateRepository;
     private final AuctionBidRepository auctionBidRepository;
@@ -34,19 +35,24 @@ public class GameService {
 
     public GameState getGameState() {
         return gameStateRepository.findById(1L)
-                .orElseThrow(() -> new ScoutException("Estado do jogo nao encontrado"));
+                .orElseThrow(() -> new ScoutException("Game state was not found"));
     }
 
     @Transactional
     public Response.GameState advanceToAuctionPhase() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.REGISTRATION) {
-            throw new ScoutException("Fase atual nao permite esta acao: " + state.getPhase());
+            throw new ScoutException("This action is not available during phase: " + state.getPhase());
+        }
+        long presidentCount = presidentRepository.count();
+        if (presidentCount < MINIMUM_PRESIDENTS) {
+            throw new ScoutException("At least " + MINIMUM_PRESIDENTS
+                    + " presidents are required to start the auction. Registered: " + presidentCount);
         }
         state.setPhase(GamePhase.DRAFT_AUCTION);
         state.setCurrentAuctionPlayerIndex(0);
         gameStateRepository.save(state);
-        log.info("🎯 Fase avancada para DRAFT_AUCTION");
+        log.info("Game advanced to DRAFT_AUCTION");
         return buildResponse(state);
     }
 
@@ -54,15 +60,15 @@ public class GameService {
     public Response.GameState advanceAuctionToNextPlayer() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.DRAFT_AUCTION) {
-            throw new ScoutException("Nao estamos na fase de leilao. Fase atual: " + state.getPhase());
+            throw new ScoutException("The game is not in the auction phase. Current phase: " + state.getPhase());
         }
         int nextIndex = state.getCurrentAuctionPlayerIndex() + 1;
-        if (nextIndex >= AUCTION_PLAYER_NAMES.length) {
+        if (nextIndex >= AUCTION_PLAYER_NAMES.size()) {
             state.setPhase(GamePhase.DRAFT_LOTTERY);
-            log.info("✅ Leilao concluido! Avancando para DRAFT_LOTTERY");
+            log.info("Auction completed. Game advanced to DRAFT_LOTTERY");
         } else {
             state.setCurrentAuctionPlayerIndex(nextIndex);
-            log.info("➡️ Proximo no leilao: {}", AUCTION_PLAYER_NAMES[nextIndex]);
+            log.info("Next auction player: {}", AUCTION_PLAYER_NAMES.get(nextIndex));
         }
         gameStateRepository.save(state);
         return buildResponse(state);
@@ -72,12 +78,12 @@ public class GameService {
     public Response.GameState advanceToChampionship() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.DRAFT_LOTTERY) {
-            throw new ScoutException("Fase atual nao permite esta acao: " + state.getPhase());
+            throw new ScoutException("This action is not available during phase: " + state.getPhase());
         }
         state.setPhase(GamePhase.CHAMPIONSHIP);
         state.setCurrentRound(0);
         gameStateRepository.save(state);
-        log.info("🏆 Campeonato iniciado!");
+        log.info("Championship started");
         return buildResponse(state);
     }
 
@@ -85,14 +91,14 @@ public class GameService {
     public Response.GameState openTransferWindow() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.CHAMPIONSHIP) {
-            throw new ScoutException("Janela so abre durante o campeonato. Fase: " + state.getPhase());
+            throw new ScoutException("Transfers can only open during the championship. Current phase: " + state.getPhase());
         }
         if (state.getCurrentRound() < 3) {
-            throw new ScoutException("Janela abre apenas apos a rodada 3. Rodada atual: " + state.getCurrentRound());
+            throw new ScoutException("Transfers open after round 3. Current round: " + state.getCurrentRound());
         }
         state.setPhase(GamePhase.TRANSFER_WINDOW);
         gameStateRepository.save(state);
-        log.info("🪟 Janela de transferencias aberta!");
+        log.info("Transfer window opened");
         return buildResponse(state);
     }
 
@@ -100,11 +106,11 @@ public class GameService {
     public Response.GameState closeTransferWindow() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.TRANSFER_WINDOW) {
-            throw new ScoutException("Nao ha janela aberta. Fase: " + state.getPhase());
+            throw new ScoutException("There is no open transfer window. Current phase: " + state.getPhase());
         }
         state.setPhase(GamePhase.CHAMPIONSHIP);
         gameStateRepository.save(state);
-        log.info("🔒 Janela de transferencias fechada!");
+        log.info("Transfer window closed");
         return buildResponse(state);
     }
 
@@ -112,11 +118,14 @@ public class GameService {
     public Response.GameState finishChampionship() {
         GameState state = getGameState();
         if (state.getPhase() != GamePhase.CHAMPIONSHIP && state.getPhase() != GamePhase.TRANSFER_WINDOW) {
-            throw new ScoutException("Nao e possivel encerrar agora. Fase: " + state.getPhase());
+            throw new ScoutException("The season cannot finish during phase: " + state.getPhase());
+        }
+        if (matchRepository.countByPlayedFalse() > 0) {
+            throw new ScoutException("All championship matches must be played before the season can finish");
         }
         state.setPhase(GamePhase.FINISHED);
         gameStateRepository.save(state);
-        log.info("🏁 Campeonato encerrado!");
+        log.info("Season finished");
         return buildResponse(state);
     }
 
@@ -129,6 +138,7 @@ public class GameService {
         for (Player player : players) {
             player.setPresident(null);
             player.setAvailable(true);
+            player.setAuctionPlayer(AUCTION_PLAYER_NAMES.contains(player.getName()));
             player.setGoalsScored(0);
             player.setGoalsConceded(0);
             player.setMatchesPlayed(0);
@@ -141,10 +151,10 @@ public class GameService {
         state.setPhase(GamePhase.REGISTRATION);
         state.setCurrentRound(0);
         state.setCurrentAuctionPlayerIndex(0);
-        state.setTotalRounds(6);
+        state.setTotalRounds(0);
         gameStateRepository.save(state);
 
-        log.info("Nova temporada iniciada. Estado resetado para REGISTRATION");
+        log.info("New season started. Game state reset to REGISTRATION");
         return buildResponse(state);
     }
 
@@ -153,14 +163,21 @@ public class GameService {
         for (GamePhase phase : allowedPhases) {
             if (state.getPhase() == phase) return;
         }
-        throw new ScoutException("Operacao nao permitida na fase: " + state.getPhase());
+        throw new ScoutException("Operation is not allowed during phase: " + state.getPhase());
+    }
+
+    @Transactional
+    public void updateChampionshipRounds(int totalRounds) {
+        GameState state = getGameState();
+        state.setTotalRounds(totalRounds);
+        gameStateRepository.save(state);
     }
 
     public Response.GameState buildResponse(GameState state) {
         String currentAuctionPlayer = null;
         if (state.getPhase() == GamePhase.DRAFT_AUCTION &&
-            state.getCurrentAuctionPlayerIndex() < AUCTION_PLAYER_NAMES.length) {
-            currentAuctionPlayer = AUCTION_PLAYER_NAMES[state.getCurrentAuctionPlayerIndex()];
+            state.getCurrentAuctionPlayerIndex() < AUCTION_PLAYER_NAMES.size()) {
+            currentAuctionPlayer = AUCTION_PLAYER_NAMES.get(state.getCurrentAuctionPlayerIndex());
         }
         return Response.GameState.builder()
                 .phase(state.getPhase())
@@ -174,12 +191,12 @@ public class GameService {
 
     private String getPhaseDescription(GamePhase phase) {
         return switch (phase) {
-            case REGISTRATION    -> "📝 Cadastro de presidentes";
-            case DRAFT_AUCTION   -> "🎯 Leilao dos jogadores especiais";
-            case DRAFT_LOTTERY   -> "🎰 Sorteio dos demais jogadores";
-            case CHAMPIONSHIP    -> "⚽ Campeonato em andamento";
-            case TRANSFER_WINDOW -> "🪟 Janela de transferencias aberta";
-            case FINISHED        -> "🏁 Campeonato encerrado";
+            case REGISTRATION    -> "Register clubs and presidents";
+            case DRAFT_AUCTION   -> "Auction the five featured players";
+            case DRAFT_LOTTERY   -> "Complete squads through the lottery";
+            case CHAMPIONSHIP    -> "Play the championship round by round";
+            case TRANSFER_WINDOW -> "Transfer window is open";
+            case FINISHED        -> "Season finished";
         };
     }
 }

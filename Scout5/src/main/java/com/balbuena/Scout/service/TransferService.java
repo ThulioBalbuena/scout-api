@@ -33,10 +33,10 @@ public class TransferService {
 
         Player playerOut = getOwnedPlayer(president, request.getPlayerOutId());
         Player playerIn  = playerRepository.findById(request.getPlayerInId())
-                .orElseThrow(() -> new ScoutException("Jogador nao encontrado: ID " + request.getPlayerInId()));
+                .orElseThrow(() -> new ScoutException("Player not found: ID " + request.getPlayerInId()));
 
         if (!playerIn.isAvailable()) {
-            throw new ScoutException("Jogador " + playerIn.getName() + " nao esta disponivel.");
+            throw new ScoutException("Player " + playerIn.getName() + " is not available");
         }
 
         validateGoalkeeperRule(president, playerOut, playerIn);
@@ -44,7 +44,7 @@ public class TransferService {
         double diff = playerIn.getValue() - playerOut.getValue();
         if (diff > 0 && president.getBudget() < diff) {
             throw new ScoutException(String.format(
-                "Saldo insuficiente. Diferenca: R$ %.2f | Saldo: R$ %.2f", diff, president.getBudget()));
+                "Insufficient funds. Difference: BRL %.2f | Available: BRL %.2f", diff, president.getBudget()));
         }
 
         playerOut.setPresident(null);
@@ -60,7 +60,7 @@ public class TransferService {
         president.setTransferUsed(true);
         presidentRepository.save(president);
 
-        log.info("🔄 {} trocou {} por {}", president.getName(), playerOut.getName(), playerIn.getName());
+        log.info("{} swapped {} for {}", president.getName(), playerOut.getName(), playerIn.getName());
         return presidentService.toResponse(president);
     }
 
@@ -72,7 +72,7 @@ public class TransferService {
         validateTransferAllowed(buyer);
 
         if (request.getTargetPresidentId() == null || request.getOfferAmount() == null) {
-            throw new ScoutException("Informe targetPresidentId e offerAmount para negociacao entre presidents.");
+            throw new ScoutException("targetPresidentId and offerAmount are required for negotiations");
         }
 
         President seller = presidentService.getPresident(request.getTargetPresidentId());
@@ -81,7 +81,7 @@ public class TransferService {
 
         if (buyer.getBudget() < request.getOfferAmount()) {
             throw new ScoutException(String.format(
-                "Saldo insuficiente. Oferta: R$ %.2f | Saldo: R$ %.2f",
+                "Insufficient funds. Offer: BRL %.2f | Available: BRL %.2f",
                 request.getOfferAmount(), buyer.getBudget()));
         }
 
@@ -99,7 +99,7 @@ public class TransferService {
         seller.setBudget(seller.getBudget() + request.getOfferAmount());
         presidentRepository.save(seller);
 
-        log.info("🤝 {} comprou {} de {} por R$ {}", buyer.getName(), playerIn.getName(), seller.getName(), request.getOfferAmount());
+        log.info("{} bought {} from {} for BRL {}", buyer.getName(), playerIn.getName(), seller.getName(), request.getOfferAmount());
         return presidentService.toResponse(buyer);
     }
 
@@ -114,14 +114,14 @@ public class TransferService {
 
     private void validateTransferAllowed(President president) {
         if (president.isTransferUsed()) {
-            throw new ScoutException("Voce ja utilizou sua transferencia nesta janela.");
+            throw new ScoutException("This club has already used its transfer in this window");
         }
     }
 
     private Player getOwnedPlayer(President president, Long playerId) {
         return president.getTeam().stream().filter(p -> p.getId().equals(playerId)).findFirst()
                 .orElseThrow(() -> new ScoutException(
-                    "Jogador ID " + playerId + " nao pertence ao time de " + president.getName()));
+                    "Player ID " + playerId + " does not belong to " + president.getClubName()));
     }
 
     private void validateGoalkeeperRule(President president, Player out, Player in) {
@@ -129,7 +129,7 @@ public class TransferService {
             long otherGks = president.getTeam().stream()
                     .filter(p -> p.getPosition() == Position.GOALKEEPER && !p.getId().equals(out.getId())).count();
             if (otherGks == 0) {
-                throw new ScoutException("Nao e possivel remover o unico goleiro sem adicionar outro.");
+                throw new ScoutException("The only goalkeeper cannot be removed without adding another goalkeeper");
             }
         }
     }

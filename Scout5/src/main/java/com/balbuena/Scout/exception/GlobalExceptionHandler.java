@@ -18,7 +18,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Response.ApiMessage> handleScoutException(ScoutException ex) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Response.ApiMessage.of("❌ " + ex.getMessage()));
+                .body(Response.ApiMessage.of(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -31,13 +31,13 @@ public class GlobalExceptionHandler {
         });
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(Response.ApiMessage.of("Erro de validacao", errors));
+                .body(Response.ApiMessage.of("Validation failed", errors));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Response.ApiMessage> handleGenericException(Exception ex) {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Response.ApiMessage.of("Erro interno: " + ex.getMessage()));
+                .body(Response.ApiMessage.of("Internal error: " + ex.getMessage()));
     }
 }

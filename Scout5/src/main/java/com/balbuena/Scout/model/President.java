@@ -23,6 +23,9 @@ public class President {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Column(name = "club_name", unique = true)
+    private String clubName;
+
     @Builder.Default //@builder.default estabelece que na criação desse classe, o valor sempre será esse
     private Double budget = 100.0;
 

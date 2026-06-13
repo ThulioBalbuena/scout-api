@@ -21,6 +21,7 @@ public class DraftLotteryService {
     private final PresidentRepository presidentRepository;
     private final PlayerRepository playerRepository;
     private final GameService gameService;
+    private final ChampionshipService championshipService;
 
     @Transactional
     public String runLottery() {
@@ -28,7 +29,7 @@ public class DraftLotteryService {
 
         List<President> presidents = presidentRepository.findAll();
         if (presidents.isEmpty()) {
-            throw new ScoutException("Nenhum president cadastrado.");
+            throw new ScoutException("No presidents are registered");
         }
 
         List<President> needPlayers = presidents.stream()
@@ -37,7 +38,8 @@ public class DraftLotteryService {
 
         if (needPlayers.isEmpty()) {
             gameService.advanceToChampionship();
-            return "✅ Todos os times ja estao completos! Campeonato iniciado!";
+            championshipService.generateSchedule();
+            return "All squads were already complete. The championship has started.";
         }
 
         List<Player> pool = new ArrayList<>(playerRepository.findByAuctionPlayerFalseAndAvailableTrue());
@@ -45,11 +47,11 @@ public class DraftLotteryService {
                 .filter(Player::isAvailable).toList());
 
         if (pool.isEmpty()) {
-            throw new ScoutException("Nao ha jogadores disponiveis para sorteio.");
+            throw new ScoutException("There are no players available for the lottery");
         }
 
         Collections.shuffle(pool);
-        StringBuilder result = new StringBuilder("🎰 Resultado do Sorteio:\n\n");
+        StringBuilder result = new StringBuilder("Lottery result:\n\n");
 
         for (President president : needPlayers) {
             int slotsNeeded = 5 - president.getTeam().size();
@@ -84,7 +86,9 @@ public class DraftLotteryService {
             result.append("\n");
         }
 
-        result.append("✅ Sorteio concluido! Use POST /api/game/advance-to-championship para iniciar.");
+        gameService.advanceToChampionship();
+        championshipService.generateSchedule();
+        result.append("Lottery completed. The championship schedule is ready.");
         return result.toString();
     }
 

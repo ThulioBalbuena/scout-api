@@ -27,6 +27,12 @@ public class PresidentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(presidentService.create(request));
     }
 
+    @PostMapping("/defaults")
+    @Operation(summary = "Create the ten default clubs and presidents")
+    public ResponseEntity<List<Response.President>> createDefaults() {
+        return ResponseEntity.status(HttpStatus.CREATED).body(presidentService.createDefaults());
+    }
+
     @GetMapping
     @Operation(summary = "Listar todos os presidents")
     public ResponseEntity<List<Response.President>> findAll() {

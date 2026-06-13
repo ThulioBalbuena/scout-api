@@ -41,17 +41,18 @@ public class AuctionService {
 
         Player player = getCurrentAuctionPlayer();
         if (!player.getId().equals(playerId)) {
-            throw new ScoutException("Jogador em leilao agora e: " + player.getName() + " (ID: " + player.getId() + ")");
+            throw new ScoutException("The player currently up for auction is " + player.getName()
+                    + " (ID: " + player.getId() + ")");
         }
 
         President president = presidentService.getPresident(request.getPresidentId());
 
         if (president.isTeamComplete()) {
-            throw new ScoutException("Seu time ja esta completo (5 jogadores).");
+            throw new ScoutException("This squad is already complete with 5 players");
         }
         if (request.getBidAmount() > president.getBudget()) {
             throw new ScoutException(String.format(
-                "Saldo insuficiente. Saldo: R$ %.2f | Lance: R$ %.2f",
+                "Insufficient funds. Available: BRL %.2f | Bid: BRL %.2f",
                 president.getBudget(), request.getBidAmount()));
         }
 
@@ -59,14 +60,14 @@ public class AuctionService {
         if (currentHighest.isPresent()) {
             if (request.getBidAmount() <= currentHighest.get().getBidAmount()) {
                 throw new ScoutException(String.format(
-                    "Lance deve ser maior que o atual: R$ %.2f", currentHighest.get().getBidAmount()));
+                    "The bid must be higher than the current BRL %.2f", currentHighest.get().getBidAmount()));
             }
             if (currentHighest.get().getPresident().getId().equals(president.getId())) {
-                throw new ScoutException("Voce ja e o maior licitante! Aguarde outros ou finalize o leilao.");
+                throw new ScoutException("This president already has the highest bid");
             }
         } else if (request.getBidAmount() < player.getValue()) {
             throw new ScoutException(String.format(
-                "Lance minimo e o valor base do jogador: R$ %.2f", player.getValue()));
+                "The minimum bid is the player's base value: BRL %.2f", player.getValue()));
         }
 
         AuctionBid bid = AuctionBid.builder()
@@ -77,7 +78,7 @@ public class AuctionService {
                 .build();
         bidRepository.save(bid);
 
-        log.info("💰 Lance de R$ {} por {} no jogador {}", request.getBidAmount(), president.getName(), player.getName());
+        log.info("Bid of BRL {} placed by {} for {}", request.getBidAmount(), president.getName(), player.getName());
         return buildAuctionStatus(player);
     }
 
@@ -102,11 +103,11 @@ public class AuctionService {
             player.setPresident(president);
             playerRepository.save(player);
 
-            log.info("🏆 {} ganhou {} por R$ {}", president.getName(), player.getName(), winner.getBidAmount());
+            log.info("{} won {} for BRL {}", president.getName(), player.getName(), winner.getBidAmount());
         } else {
             player.setAuctionPlayer(false);
             playerRepository.save(player);
-            log.info("⚠️ Nenhum lance para {}. Vai para sorteio.", player.getName());
+            log.info("No bids for {}. Player moved to the lottery", player.getName());
         }
 
         gameService.advanceAuctionToNextPlayer();
@@ -115,14 +116,13 @@ public class AuctionService {
 
     private Player getCurrentAuctionPlayer() {
         GameState state = gameService.getGameState();
-        List<Player> auctionPlayers = playerRepository.findByAuctionPlayerTrue().stream()
-                .filter(Player::isAvailable)
-                .collect(Collectors.toList());
-
-        if (auctionPlayers.isEmpty() || state.getCurrentAuctionPlayerIndex() >= auctionPlayers.size()) {
-            throw new ScoutException("Todos os jogadores do leilao ja foram processados.");
+        if (state.getCurrentAuctionPlayerIndex() >= GameService.AUCTION_PLAYER_NAMES.size()) {
+            throw new ScoutException("All auction players have already been processed");
         }
-        return auctionPlayers.get(state.getCurrentAuctionPlayerIndex());
+
+        String playerName = GameService.AUCTION_PLAYER_NAMES.get(state.getCurrentAuctionPlayerIndex());
+        return playerRepository.findByName(playerName)
+                .orElseThrow(() -> new ScoutException("Auction player was not found: " + playerName));
     }
 
     private Response.AuctionStatus buildAuctionStatus(Player player) {
@@ -143,7 +143,7 @@ public class AuctionService {
                 .playerPosition(player.getPosition())
                 .playerBaseValue(player.getValue())
                 .currentHighestBid(highest.map(AuctionBid::getBidAmount).orElse(null))
-                .currentLeader(highest.map(b -> b.getPresident().getName()).orElse("Nenhum lance"))
+                .currentLeader(highest.map(b -> b.getPresident().getName()).orElse(null))
                 .bids(bidInfos)
                 .build();
     }

@@ -38,6 +38,6 @@ public class AuctionController {
                description = "Maior licitante leva o jogador. Sem lances, jogador vai para o sorteio. Avanca automaticamente.")
     public ResponseEntity<Response.ApiMessage> finalizeAuction(@PathVariable Long playerId) {
         Response.AuctionStatus status = auctionService.finalizeCurrentAuction();
-        return ResponseEntity.ok(Response.ApiMessage.of("✅ Leilao finalizado!", status));
+        return ResponseEntity.ok(Response.ApiMessage.of("Player auction finalized.", status));
     }
 }

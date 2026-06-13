@@ -22,7 +22,7 @@ public class ChampionshipController {
     @Operation(summary = "Gerar tabela de jogos (round-robin)", description = "Gera todas as partidas. Chamar uma vez apos iniciar o campeonato.")
     public ResponseEntity<Response.ApiMessage> generateSchedule() {
         List<Response.Match> matches = championshipService.generateSchedule();
-        return ResponseEntity.ok(Response.ApiMessage.of("📅 " + matches.size() + " partidas geradas!", matches));
+        return ResponseEntity.ok(Response.ApiMessage.of(matches.size() + " matches generated.", matches));
     }
 
     @GetMapping("/matches")
@@ -42,13 +42,13 @@ public class ChampionshipController {
                description = "Simula com base na forca do time. Fator casa: +10%. Gols distribuidos por posicao.")
     public ResponseEntity<Response.ApiMessage> simulateRound(@PathVariable int roundNumber) {
         List<Response.Match> results = championshipService.simulateRound(roundNumber);
-        return ResponseEntity.ok(Response.ApiMessage.of("⚽ Rodada " + roundNumber + " simulada!", results));
+        return ResponseEntity.ok(Response.ApiMessage.of("Round " + roundNumber + " played.", results));
     }
 
     @PostMapping("/simulate/all")
     @Operation(summary = "Simular todas as rodadas pendentes")
     public ResponseEntity<Response.ApiMessage> simulateAll() {
         List<Response.Match> results = championshipService.simulateAllPendingRounds();
-        return ResponseEntity.ok(Response.ApiMessage.of("✅ " + results.size() + " partidas simuladas!", results));
+        return ResponseEntity.ok(Response.ApiMessage.of(results.size() + " matches played.", results));
     }
 }

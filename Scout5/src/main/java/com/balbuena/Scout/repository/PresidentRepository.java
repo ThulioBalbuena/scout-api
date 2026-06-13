@@ -12,6 +12,7 @@ public interface PresidentRepository extends JpaRepository<President, Long> {
     Optional<President> findByEmail(String email);
     boolean existsByEmail(String email);
     boolean existsByName(String name);
+    boolean existsByClubName(String clubName);
 
     @Query("SELECT p FROM President p ORDER BY p.points DESC, (p.goalsFor - p.goalsAgainst) DESC, p.goalsFor DESC")
     List<President> findAllOrderedByStandings();

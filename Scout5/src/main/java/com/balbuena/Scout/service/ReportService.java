@@ -37,7 +37,7 @@ public class ReportService {
                         .rank(rank.getAndIncrement())
                         .playerName(p.getName())
                         .position(p.getPosition())
-                        .presidentName(p.getPresident() != null ? p.getPresident().getName() : "Disponivel")
+                        .presidentName(p.getPresident() != null ? p.getPresident().getName() : "Available")
                         .goals(p.getGoalsScored())
                         .build())
                 .collect(Collectors.toList());
@@ -62,9 +62,9 @@ public class ReportService {
         return Response.ChampionshipReport.builder()
                 .standings(standings)
                 .topScorers(getTopScorers())
-                .bestAttack(getBestAttack())
-                .bestDefense(getBestDefense())
-                .champion(standings.isEmpty() ? "N/A" : standings.get(0).getPresidentName())
+                .bestAttack(standings.isEmpty() ? null : getBestAttack())
+                .bestDefense(standings.isEmpty() ? null : getBestDefense())
+                .champion(standings.isEmpty() ? null : displayClub(standings.get(0)))
                 .build();
     }
 
@@ -72,6 +72,7 @@ public class ReportService {
         return Response.Standing.builder()
                 .position(position)
                 .presidentName(p.getName())
+                .clubName(p.getClubName())
                 .points(p.getPoints())
                 .wins(p.getWins())
                 .draws(p.getDraws())
@@ -81,5 +82,9 @@ public class ReportService {
                 .goalDifference(p.getGoalDifference())
                 .matchesPlayed(p.getWins() + p.getDraws() + p.getLosses())
                 .build();
+    }
+
+    private String displayClub(Response.Standing standing) {
+        return standing.getClubName() != null ? standing.getClubName() : standing.getPresidentName();
     }
 }
