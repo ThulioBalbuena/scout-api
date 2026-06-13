@@ -19,11 +19,11 @@ pipeline {
       }
     }
 
-    stage('Build Frontend') {
+    stage('Build Backend') {
       steps {
-        dir('Scout-front') {
-          sh 'npm ci --include=dev'
-          sh 'npm run build'
+        dir('Scout5') {
+          sh 'chmod +x ./mvnw'
+          sh './mvnw package -DskipTests'
         }
       }
     }
@@ -31,6 +31,7 @@ pipeline {
     stage('Build Frontend') {
       steps {
         dir('Scout-front') {
+          sh 'npm ci --include=dev'
           sh 'npm run build'
         }
       }
