@@ -24,6 +24,7 @@ export interface President {
   id: number;
   name: string;
   email: string;
+  clubName: string;
   budget: number;
   usedBudget: number;
   teamComplete: boolean;
@@ -44,6 +45,8 @@ export interface Match {
   roundNumber: number;
   homePresident: string;
   awayPresident: string;
+  homeClub?: string;
+  awayClub?: string;
   homeGoals: number | null;
   awayGoals: number | null;
   played: boolean;
@@ -76,6 +79,7 @@ export interface AuctionStatus {
 export interface Standing {
   position: number;
   presidentName: string;
+  clubName: string;
   points: number;
   wins: number;
   draws: number;

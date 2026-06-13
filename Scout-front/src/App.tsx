@@ -1,39 +1,43 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BadgeDollarSign,
-  CalendarDays,
   CheckCircle2,
+  ChevronsRight,
+  CircleAlert,
   CircleDollarSign,
   Flag,
-  Loader2,
-  Play,
-  RefreshCw,
+  FastForward,
   Shield,
   Shuffle,
   Swords,
   Trophy,
   UserPlus,
-  Users
+  Users,
+  WalletCards
 } from "lucide-react";
 import { api } from "./api";
-import type { AuctionStatus, ChampionshipReport, GameState, GamePhase, Match, Player, President } from "./types";
+import type { AuctionStatus, ChampionshipReport, GamePhase, GameState, Match, Player, President } from "./types";
 
-const phases: Array<{
-  key: GamePhase;
-  title: string;
-  label: string;
-  action: string;
-}> = [
-  { key: "REGISTRATION", title: "Sign presidents", label: "Registration", action: "Create clubs" },
-  { key: "DRAFT_AUCTION", title: "Auction stars", label: "Auction", action: "Bid and finalize" },
-  { key: "DRAFT_LOTTERY", title: "Lottery draft", label: "Lottery", action: "Run lottery" },
-  { key: "CHAMPIONSHIP", title: "Play league", label: "Championship", action: "Schedule and simulate" },
-  { key: "TRANSFER_WINDOW", title: "Transfer window", label: "Transfers", action: "Swap players" },
-  { key: "FINISHED", title: "Lift trophy", label: "Reports", action: "Review champion" }
+const MINIMUM_PRESIDENTS = 10;
+
+const phases: Array<{ key: GamePhase; label: string }> = [
+  { key: "REGISTRATION", label: "Registration" },
+  { key: "DRAFT_AUCTION", label: "Auction" },
+  { key: "DRAFT_LOTTERY", label: "Lottery" },
+  { key: "CHAMPIONSHIP", label: "Championship" },
+  { key: "TRANSFER_WINDOW", label: "Transfers" },
+  { key: "FINISHED", label: "Finished" }
 ];
 
+type Feedback = {
+  kind: "success" | "error";
+  message: string;
+};
+
+type Runner = <T>(action: () => Promise<T>, success?: (result: T) => string) => Promise<boolean>;
+
 function money(value?: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value ?? 0);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "BRL" }).format(value ?? 0);
 }
 
 function positionLabel(position?: string) {
@@ -50,6 +54,10 @@ function phaseIndex(phase?: GamePhase) {
   return phases.findIndex((item) => item.key === phase);
 }
 
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 function useScoutData() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [presidents, setPresidents] = useState<President[]>([]);
@@ -58,12 +66,11 @@ function useScoutData() {
   const [auction, setAuction] = useState<AuctionStatus | null>(null);
   const [report, setReport] = useState<ChampionshipReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
-  async function refresh() {
+  async function refresh(showError = true) {
     setLoading(true);
-    setError(null);
     try {
       const [state, allPresidents, allPlayers] = await Promise.all([
         api.getGameState(),
@@ -86,129 +93,163 @@ function useScoutData() {
       }
 
       await Promise.all(jobs);
+      return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not load Scout data");
+      if (showError) {
+        setFeedback({
+          kind: "error",
+          message: caught instanceof Error ? caught.message : "Could not load Scout data"
+        });
+      }
+      return false;
     } finally {
       setLoading(false);
     }
   }
 
-  async function run<T>(action: () => Promise<T>, message?: (result: T) => string) {
-    setError(null);
-    setNotice(null);
+  async function run<T>(action: () => Promise<T>, success?: (result: T) => string) {
+    setActing(true);
+    setFeedback(null);
     try {
       const result = await action();
-      const responseMessage = typeof result === "object" && result && "message" in result ? String(result.message) : null;
-      setNotice(message?.(result) ?? responseMessage ?? "Action completed");
-      await refresh();
+      const responseMessage =
+        typeof result === "object" && result && "message" in result ? String(result.message) : "Action completed";
+      setFeedback({ kind: "success", message: success?.(result) ?? responseMessage });
+      await refresh(false);
+      return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Action failed");
+      setFeedback({
+        kind: "error",
+        message: caught instanceof Error ? caught.message : "Action failed"
+      });
+      return false;
+    } finally {
+      setActing(false);
     }
   }
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+
+    async function loadWhenBackendIsReady() {
+      for (let attempt = 0; attempt < 5 && !cancelled; attempt += 1) {
+        const loaded = await refresh(attempt === 4);
+        if (loaded) return;
+        await wait(1000);
+      }
+    }
+
+    void loadWhenBackendIsReady();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  return { auction, error, gameState, loading, matches, notice, players, presidents, refresh, report, run };
+  return {
+    acting,
+    auction,
+    feedback,
+    gameState,
+    loading,
+    matches,
+    players,
+    presidents,
+    refresh,
+    report,
+    run,
+    setFeedback
+  };
 }
 
 export function App() {
   const data = useScoutData();
-  const activeIndex = phaseIndex(data.gameState?.phase);
   const playedMatches = data.matches.filter((match) => match.played).length;
 
   return (
-    <main>
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Scout Fantasy Football</p>
-          <h1>Run the season from kickoff to trophy.</h1>
-          <p className="hero-text">
-            Follow the game in order: register presidents, auction the stars, draft the squads, simulate the league,
-            open transfers, and crown the champion.
-          </p>
-          <div className="hero-stats">
-            <Stat label="Presidents" value={data.presidents.length} />
-            <Stat label="Players" value={data.players.length} />
-            <Stat label="Played" value={`${playedMatches}/${data.matches.length}`} />
-          </div>
-        </div>
-        <div className="pitch-card" aria-hidden="true">
-          <div className="pitch-lines">
-            <span className="center-circle" />
-            <span className="spot home" />
-            <span className="spot away" />
-          </div>
-          <div className="scoreboard">
-            <span>Current phase</span>
-            <strong>{data.gameState?.phase ?? "Loading"}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section className="page-wrap">
-        <div className="toolbar">
+    <main className="app-shell">
+      <header className="app-header">
+        <div className="brand">
+          <span className="brand-mark">
+            <Shield size={22} />
+          </span>
           <div>
-            <p className="section-kicker">Match flow</p>
-            <h2>Execute each phase in order</h2>
-          </div>
-          <div className="toolbar-actions">
-            <button className="reset-button" onClick={() => data.run(api.resetSeason)} title="Start a fresh season">
-              <Flag size={17} />
-              New season
-            </button>
-            <button className="ghost-button" onClick={data.refresh} title="Refresh data">
-              {data.loading ? <Loader2 className="spin" size={17} /> : <RefreshCw size={17} />}
-              Refresh
-            </button>
+            <strong>Scout League</strong>
+            <span>Season control</span>
           </div>
         </div>
+        <div className="header-actions">
+          <button onClick={() => void data.run(api.resetSeason)} disabled={data.acting}>
+            <Flag size={17} />
+            New season
+          </button>
+        </div>
+      </header>
 
-        {data.error && <div className="alert error">{data.error}</div>}
-        {data.notice && <div className="alert success">{data.notice}</div>}
-
-        <PhaseRoadmap activeIndex={activeIndex} />
-
-        <section className="matchday-grid">
-          <ActivePhasePanel {...data} />
-          <SquadsPanel presidents={data.presidents} players={data.players} />
-          <LeaguePanel matches={data.matches} report={data.report} />
-        </section>
+      <section className="status-strip">
+        <div>
+          <span>Current phase</span>
+          <strong>{phases.find((phase) => phase.key === data.gameState?.phase)?.label ?? "Connecting"}</strong>
+        </div>
+        <div>
+          <span>Clubs</span>
+          <strong>{data.presidents.length}</strong>
+        </div>
+        <div>
+          <span>Round</span>
+          <strong>
+            {data.gameState?.currentRound ?? 0}/{data.gameState?.totalRounds ?? 0}
+          </strong>
+        </div>
+        <div>
+          <span>Matches played</span>
+          <strong>
+            {playedMatches}/{data.matches.length}
+          </strong>
+        </div>
       </section>
+
+      <PhaseRoadmap phase={data.gameState?.phase} />
+
+      <section className="dashboard">
+        <ActivePhasePanel
+          acting={data.acting}
+          auction={data.auction}
+          gameState={data.gameState}
+          matches={data.matches}
+          players={data.players}
+          presidents={data.presidents}
+          report={data.report}
+          run={data.run}
+        />
+        <ClubTable phase={data.gameState?.phase} presidents={data.presidents} report={data.report} />
+      </section>
+
+      {data.feedback && (
+        <NotificationCard feedback={data.feedback} onClose={() => data.setFeedback(null)} />
+      )}
     </main>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function PhaseRoadmap({ phase }: { phase?: GamePhase }) {
+  const activeIndex = phaseIndex(phase);
   return (
-    <div className="hero-stat">
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function PhaseRoadmap({ activeIndex }: { activeIndex: number }) {
-  return (
-    <div className="roadmap">
-      {phases.map((phase, index) => {
-        const status = index < activeIndex ? "complete" : index === activeIndex ? "active" : "locked";
+    <nav className="phase-roadmap" aria-label="Season phases">
+      {phases.map((item, index) => {
+        const status = index < activeIndex ? "complete" : index === activeIndex ? "active" : "pending";
         return (
-          <article className={`phase-card ${status}`} key={phase.key}>
-            <span className="phase-number">{index + 1}</span>
-            <div>
-              <strong>{phase.label}</strong>
-              <p>{phase.action}</p>
-            </div>
-          </article>
+          <div className={`phase-step ${status}`} key={item.key}>
+            <span>{index < activeIndex ? <CheckCircle2 size={15} /> : index + 1}</span>
+            <strong>{item.label}</strong>
+          </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
 function ActivePhasePanel({
+  acting,
   auction,
   gameState,
   matches,
@@ -217,172 +258,212 @@ function ActivePhasePanel({
   report,
   run
 }: {
+  acting: boolean;
   auction: AuctionStatus | null;
   gameState: GameState | null;
   matches: Match[];
   players: Player[];
   presidents: President[];
   report: ChampionshipReport | null;
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  run: Runner;
 }) {
   return (
-    <section className="panel active-panel">
+    <section className="panel phase-panel">
       <div className="panel-heading">
         <div>
-          <p className="section-kicker">Now playing</p>
-          <h2>{phases[phaseIndex(gameState?.phase)]?.title ?? "Connect backend"}</h2>
+          <p className="eyebrow">Now playing</p>
+          <h1>{gameState?.phaseDescription ?? "Connect the backend to begin"}</h1>
         </div>
-        <span className="phase-pill">{gameState?.phase ?? "Offline"}</span>
+        <span className="phase-pill">{gameState?.phase?.replaceAll("_", " ") ?? "OFFLINE"}</span>
       </div>
 
-      <div className="phase-note">
-        <Flag size={18} />
-        <p>{gameState?.phaseDescription ?? "Start the Spring API on port 8080 and refresh this page."}</p>
-      </div>
-
-      {gameState?.phase === "REGISTRATION" && <RegistrationPanel presidents={presidents} run={run} />}
-      {gameState?.phase === "DRAFT_AUCTION" && <AuctionPanel auction={auction} presidents={presidents} run={run} />}
-      {gameState?.phase === "DRAFT_LOTTERY" && <LotteryPanel players={players} run={run} />}
-      {gameState?.phase === "CHAMPIONSHIP" && <ChampionshipPanel matches={matches} state={gameState} run={run} />}
-      {gameState?.phase === "TRANSFER_WINDOW" && <TransfersPanel presidents={presidents} players={players} run={run} />}
-      {gameState?.phase === "FINISHED" && <TrophyPanel report={report} />}
-
-      <NextActions phase={gameState?.phase} auction={auction} run={run} />
+      {gameState?.phase === "REGISTRATION" && (
+        <RegistrationPanel acting={acting} presidents={presidents} run={run} />
+      )}
+      {gameState?.phase === "DRAFT_AUCTION" && (
+        <AuctionPanel acting={acting} auction={auction} presidents={presidents} run={run} />
+      )}
+      {gameState?.phase === "DRAFT_LOTTERY" && (
+        <LotteryPanel acting={acting} players={players} presidents={presidents} run={run} />
+      )}
+      {gameState?.phase === "CHAMPIONSHIP" && (
+        <ChampionshipPanel acting={acting} matches={matches} state={gameState} run={run} />
+      )}
+      {gameState?.phase === "TRANSFER_WINDOW" && (
+        <TransfersPanel acting={acting} presidents={presidents} players={players} run={run} />
+      )}
+      {gameState?.phase === "FINISHED" && <TrophyPanel matches={matches} report={report} />}
     </section>
   );
 }
 
-function NextActions({
-  auction,
-  phase,
-  run
-}: {
-  auction: AuctionStatus | null;
-  phase?: GamePhase;
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
-}) {
-  const actions: Partial<Record<GamePhase, Array<{ label: string; icon: ReactNode; onClick: () => Promise<unknown> }>>> = {
-    REGISTRATION: [{ label: "Start auction", icon: <BadgeDollarSign size={17} />, onClick: api.startAuction }],
-    DRAFT_AUCTION: [
-      ...(auction
-        ? [{ label: "Finalize player", icon: <CheckCircle2 size={17} />, onClick: () => api.finalizeAuction(auction.playerId) }]
-        : []),
-      { label: "Next auction", icon: <Play size={17} />, onClick: api.advanceAuction }
-    ],
-    DRAFT_LOTTERY: [{ label: "Run lottery", icon: <Shuffle size={17} />, onClick: api.runLottery }],
-    CHAMPIONSHIP: [
-      { label: "Generate schedule", icon: <CalendarDays size={17} />, onClick: api.generateSchedule },
-      { label: "Simulate all", icon: <Swords size={17} />, onClick: api.simulateAll },
-      { label: "Open transfers", icon: <Shuffle size={17} />, onClick: api.openTransferWindow },
-      { label: "Finish season", icon: <Flag size={17} />, onClick: api.finishChampionship }
-    ],
-    TRANSFER_WINDOW: [{ label: "Close transfer window", icon: <CheckCircle2 size={17} />, onClick: api.closeTransferWindow }],
-    FINISHED: [{ label: "Start new season", icon: <Flag size={17} />, onClick: api.resetSeason }]
-  };
-
-  const visibleActions = phase ? actions[phase] ?? [] : [];
-  if (!visibleActions.length) return null;
-
-  return (
-    <div className="next-actions">
-      {visibleActions.map((action) => (
-        <button key={action.label} onClick={() => run(action.onClick)}>
-          {action.icon}
-          {action.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function RegistrationPanel({
+  acting,
   presidents,
   run
 }: {
+  acting: boolean;
   presidents: President[];
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  run: Runner;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [clubName, setClubName] = useState("");
+  const remaining = Math.max(0, MINIMUM_PRESIDENTS - presidents.length);
 
   return (
-    <div className="phase-workbench">
+    <div className="phase-content">
+      <div className="section-heading">
+        <div>
+          <h2>Register clubs</h2>
+          <p>{remaining ? `${remaining} more clubs required to start the auction.` : "Minimum reached. The auction is ready."}</p>
+        </div>
+        <button
+          className="secondary-button"
+          disabled={acting}
+          onClick={() => void run(api.createDefaultPresidents, () => "The ten default clubs were created.")}
+        >
+          <Users size={17} />
+          Create default clubs
+        </button>
+      </div>
+
       <form
-        className="manager-form"
+        className="entry-form registration-form"
         onSubmit={(event) => {
           event.preventDefault();
-          void run(() => api.createPresident({ name, email }), (president) => `Created ${president.name}`).then(() => {
-            setName("");
-            setEmail("");
+          void run(
+            () => api.createPresident({ name, email, clubName }),
+            (president) => `${president.clubName} was registered.`
+          ).then((created) => {
+            if (created) {
+              setName("");
+              setEmail("");
+              setClubName("");
+            }
           });
         }}
       >
         <label>
           President name
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Maria Santos" required />
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Rafael Menin" required />
         </label>
         <label>
           Email
           <input
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="maria@email.com"
+            placeholder="rafael.menin@email.com"
             required
             type="email"
           />
         </label>
-        <button type="submit">
+        <label>
+          Club name
+          <input
+            value={clubName}
+            onChange={(event) => setClubName(event.target.value)}
+            placeholder="Atlético Mineiro"
+            required
+          />
+        </label>
+        <button type="submit" disabled={acting}>
           <UserPlus size={17} />
-          Register president
+          Add club
         </button>
       </form>
-      <MiniList title="Registered clubs" empty="No presidents registered yet.">
-        {presidents.map((president) => (
-          <Row key={president.id} title={president.name} meta={`${president.team?.length ?? 0}/5 players`} value={money(president.budget)} />
-        ))}
-      </MiniList>
+
+      <div className="table-card">
+        <div className="table-title">
+          <strong>Registered clubs</strong>
+          <span>{presidents.length}/{MINIMUM_PRESIDENTS} minimum</span>
+        </div>
+        <div className="data-table registration-table">
+          <div className="table-row table-head">
+            <span>#</span>
+            <span>Club</span>
+            <span>President</span>
+            <span>Email</span>
+          </div>
+          {presidents.map((president, index) => (
+            <div className="table-row" key={president.id}>
+              <span>{index + 1}</span>
+              <strong>{president.clubName || "Unnamed club"}</strong>
+              <span>{president.name}</span>
+              <span className="truncate">{president.email}</span>
+            </div>
+          ))}
+          {!presidents.length && <p className="empty-state">No clubs registered yet.</p>}
+        </div>
+      </div>
+
+      <div className="phase-actions">
+        <button
+          disabled={acting || presidents.length < MINIMUM_PRESIDENTS}
+          onClick={() => void run(api.startAuction)}
+        >
+          <BadgeDollarSign size={17} />
+          Start auction
+        </button>
+      </div>
     </div>
   );
 }
 
 function AuctionPanel({
+  acting,
   auction,
   presidents,
   run
 }: {
+  acting: boolean;
   auction: AuctionStatus | null;
   presidents: President[];
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  run: Runner;
 }) {
   const [presidentId, setPresidentId] = useState("");
   const [bidAmount, setBidAmount] = useState("");
 
   if (!auction) {
-    return <p className="empty">No current auction player. Use the ordered action below to move the auction forward.</p>;
+    return <p className="empty-state">Loading the current auction player.</p>;
   }
 
   return (
-    <div className="phase-workbench">
-      <div className="star-card">
-        <span>{positionLabel(auction.playerPosition)}</span>
-        <strong>{auction.playerName}</strong>
-        <p>Base value {money(auction.playerBaseValue)}</p>
-        <b>{auction.currentLeader ? `${auction.currentLeader} leads with ${money(auction.currentHighestBid)}` : "No bids yet"}</b>
+    <div className="phase-content">
+      <div className="auction-focus">
+        <div>
+          <span>{positionLabel(auction.playerPosition)}</span>
+          <h2>{auction.playerName}</h2>
+          <p>Base value {money(auction.playerBaseValue)}</p>
+        </div>
+        <div className="leading-bid">
+          <span>Highest bid</span>
+          <strong>{auction.currentLeader ? money(auction.currentHighestBid) : "No bids"}</strong>
+          <small>{auction.currentLeader ?? "Waiting for the first offer"}</small>
+        </div>
       </div>
+
       <form
-        className="manager-form compact-form"
+        className="entry-form bid-form"
         onSubmit={(event) => {
           event.preventDefault();
-          void run(() => api.placeBid(auction.playerId, { presidentId: Number(presidentId), bidAmount: Number(bidAmount) }));
+          void run(() =>
+            api.placeBid(auction.playerId, {
+              presidentId: Number(presidentId),
+              bidAmount: Number(bidAmount)
+            })
+          ).then((placed) => {
+            if (placed) setBidAmount("");
+          });
         }}
       >
         <label>
-          President
+          Club
           <select value={presidentId} onChange={(event) => setPresidentId(event.target.value)} required>
-            <option value="">Choose president</option>
+            <option value="">Choose a club</option>
             {presidents.map((president) => (
               <option key={president.id} value={president.id}>
-                {president.name}
+                {president.clubName} - {president.name}
               </option>
             ))}
           </select>
@@ -390,104 +471,183 @@ function AuctionPanel({
         <label>
           Bid amount
           <input
-            min="0.1"
+            min={auction.playerBaseValue}
             step="0.1"
             type="number"
             value={bidAmount}
             onChange={(event) => setBidAmount(event.target.value)}
-            placeholder="120"
+            placeholder={String(auction.playerBaseValue)}
             required
           />
         </label>
-        <button type="submit">
+        <button type="submit" disabled={acting}>
           <CircleDollarSign size={17} />
           Place bid
         </button>
       </form>
-      <MiniList title="Bid history" empty="No bids placed.">
-        {auction.bids.map((bid, index) => (
-          <Row key={`${bid.presidentName}-${index}`} title={bid.presidentName} meta={bid.bidTime} value={money(bid.bidAmount)} />
-        ))}
-      </MiniList>
+
+      {!!auction.bids.length && (
+        <div className="bid-history">
+          <strong>Latest bids</strong>
+          {auction.bids.slice(0, 4).map((bid, index) => (
+            <div key={`${bid.presidentName}-${index}`}>
+              <span>{bid.presidentName}</span>
+              <b>{money(bid.bidAmount)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="phase-actions">
+        <button
+          disabled={acting}
+          onClick={() =>
+            void run(() => api.finalizeAuction(auction.playerId), () => `${auction.playerName}'s auction was finalized.`)
+          }
+        >
+          <CheckCircle2 size={17} />
+          Finalize player
+        </button>
+      </div>
     </div>
   );
 }
 
 function LotteryPanel({
+  acting,
   players,
+  presidents,
   run
 }: {
+  acting: boolean;
   players: Player[];
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  presidents: President[];
+  run: Runner;
 }) {
-  const availablePlayers = players.filter((player) => player.available).slice(0, 10);
+  const availablePlayers = players.filter((player) => player.available).length;
+  const openSlots = presidents.reduce((total, president) => total + Math.max(0, 5 - president.team.length), 0);
+
   return (
-    <div className="phase-workbench">
-      <div className="lottery-ball">
-        <Shuffle size={36} />
-        <strong>{availablePlayers.length}</strong>
-        <span>players waiting</span>
+    <div className="phase-content centered-content">
+      <div className="lottery-card">
+        <Shuffle size={34} />
+        <h2>Complete every squad automatically</h2>
+        <p>
+          {availablePlayers} available players will fill {openSlots} open squad slots, including one goalkeeper per club.
+        </p>
       </div>
-      <button className="primary-wide" onClick={() => run(api.runLottery)}>
+      <button
+        disabled={acting}
+        onClick={() =>
+          void run(api.runLottery, () => "Lottery completed. The championship schedule was generated automatically.")
+        }
+      >
         <Shuffle size={17} />
-        Run automatic lottery
+        Run lottery
       </button>
-      <MiniList title="Lottery pool" empty="No available players listed.">
-        {availablePlayers.map((player) => (
-          <Row key={player.id} title={player.name} meta={positionLabel(player.position)} value={money(player.value)} />
-        ))}
-      </MiniList>
     </div>
   );
 }
 
 function ChampionshipPanel({
+  acting,
   matches,
   state,
   run
 }: {
+  acting: boolean;
   matches: Match[];
-  state: GameState | null;
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  state: GameState;
+  run: Runner;
 }) {
-  const [round, setRound] = useState("1");
-  const visibleMatches = matches.slice(0, 6);
+  const firstVisibleRound = state.currentRound > 0 ? state.currentRound : 1;
+  const [visibleRound, setVisibleRound] = useState(firstVisibleRound);
+  const roundMatches = matches.filter((match) => match.roundNumber === visibleRound);
+  const roundPlayed = roundMatches.length > 0 && roundMatches.every((match) => match.played);
+  const nextRound = Math.min(visibleRound + 1, state.totalRounds);
+  const progress = state.totalRounds ? Math.round((state.currentRound / state.totalRounds) * 100) : 0;
+  const transfersLocked = state.currentRound < 3;
+
+  useEffect(() => {
+    setVisibleRound(state.currentRound > 0 ? state.currentRound : 1);
+  }, [state.currentRound]);
 
   return (
-    <div className="phase-workbench">
-      <form
-        className="manager-form compact-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void run(() => api.simulateRound(Number(round)));
-        }}
-      >
-        <label>
-          Round
-          <input min="1" max={state?.totalRounds ?? 10} type="number" value={round} onChange={(event) => setRound(event.target.value)} />
-        </label>
-        <button type="submit">
-          <Swords size={17} />
-          Simulate round
-        </button>
-      </form>
-      <MiniList title="Fixture board" empty="Generate the schedule to see matches.">
-        {visibleMatches.map((match) => (
+    <div className="phase-content">
+      <div className="round-header">
+        <div>
+          <span>{roundPlayed ? "Round results" : "Next round"}</span>
+          <h2>Round {visibleRound}</h2>
+        </div>
+        <div className="round-progress">
+          <span>{progress}% complete</span>
+          <div>
+            <i style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="fixtures">
+        {roundMatches.map((match) => (
           <MatchRow key={match.id} match={match} />
         ))}
-      </MiniList>
+        {!roundMatches.length && <p className="empty-state">The schedule is being prepared.</p>}
+      </div>
+
+      <div className="phase-actions">
+        {roundPlayed ? (
+          <button
+            disabled={acting || visibleRound >= state.totalRounds}
+            onClick={() => setVisibleRound(nextRound)}
+          >
+            <ChevronsRight size={17} />
+            Next round
+          </button>
+        ) : (
+          <button
+            disabled={acting || !roundMatches.length}
+            onClick={() => void run(() => api.simulateRound(visibleRound))}
+          >
+            <Swords size={17} />
+            Play round {visibleRound}
+          </button>
+        )}
+        <button
+          className="secondary-button"
+          disabled={acting || !matches.some((match) => !match.played)}
+          onClick={() => void run(api.simulateAll, () => "All remaining championship matches were played.")}
+        >
+          <FastForward size={17} />
+          Play all matches
+        </button>
+        <button
+          className="secondary-button"
+          disabled={acting || transfersLocked}
+          title={transfersLocked ? "Transfers unlock after round 3" : "Open the transfer window"}
+          onClick={() => void run(api.openTransferWindow)}
+        >
+          <Shuffle size={17} />
+          Open transfers
+        </button>
+      </div>
+      <p className="helper-text">
+        Review each result before moving to the next round, or play every remaining match at once. Transfers unlock
+        after round 3.
+      </p>
     </div>
   );
 }
 
 function TransfersPanel({
+  acting,
   presidents,
   players,
   run
 }: {
+  acting: boolean;
   presidents: President[];
   players: Player[];
-  run: <T>(action: () => Promise<T>, message?: (result: T) => string) => Promise<void>;
+  run: Runner;
 }) {
   const [presidentId, setPresidentId] = useState("");
   const [playerOutId, setPlayerOutId] = useState("");
@@ -496,159 +656,240 @@ function TransfersPanel({
   const selectedPresident = presidents.find((president) => president.id === Number(presidentId));
 
   return (
-    <form
-      className="manager-form transfer-form"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void run(() =>
-          api.swapWithMarket({
-            presidentId: Number(presidentId),
-            playerOutId: Number(playerOutId),
-            playerInId: Number(playerInId)
-          })
-        );
-      }}
-    >
-      <label>
-        President
-        <select value={presidentId} onChange={(event) => setPresidentId(event.target.value)} required>
-          <option value="">Choose president</option>
-          {presidents.map((president) => (
-            <option key={president.id} value={president.id}>
-              {president.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Player out
-        <select value={playerOutId} onChange={(event) => setPlayerOutId(event.target.value)} required>
-          <option value="">Choose player</option>
-          {selectedPresident?.team?.map((player) => (
-            <option key={player.id} value={player.id}>
-              {player.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Player in
-        <select value={playerInId} onChange={(event) => setPlayerInId(event.target.value)} required>
-          <option value="">Market player</option>
-          {marketPlayers.map((player) => (
-            <option key={player.id} value={player.id}>
-              {player.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button type="submit">
-        <Shuffle size={17} />
-        Swap with market
-      </button>
-    </form>
-  );
-}
+    <div className="phase-content">
+      <form
+        className="entry-form transfer-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void run(() =>
+            api.swapWithMarket({
+              presidentId: Number(presidentId),
+              playerOutId: Number(playerOutId),
+              playerInId: Number(playerInId)
+            })
+          );
+        }}
+      >
+        <label>
+          Club
+          <select
+            value={presidentId}
+            onChange={(event) => {
+              setPresidentId(event.target.value);
+              setPlayerOutId("");
+            }}
+            required
+          >
+            <option value="">Choose a club</option>
+            {presidents.map((president) => (
+              <option key={president.id} value={president.id}>
+                {president.clubName}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Player out
+          <select value={playerOutId} onChange={(event) => setPlayerOutId(event.target.value)} required>
+            <option value="">Choose a player</option>
+            {selectedPresident?.team.map((player) => (
+              <option key={player.id} value={player.id}>
+                {player.name} - {positionLabel(player.position)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Player in
+          <select value={playerInId} onChange={(event) => setPlayerInId(event.target.value)} required>
+            <option value="">Choose from market</option>
+            {marketPlayers.map((player) => (
+              <option key={player.id} value={player.id}>
+                {player.name} - {money(player.value)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" disabled={acting}>
+          <Shuffle size={17} />
+          Confirm transfer
+        </button>
+      </form>
 
-function TrophyPanel({ report }: { report: ChampionshipReport | null }) {
-  return (
-    <div className="trophy-panel">
-      <Trophy size={42} />
-      <span>Champion</span>
-      <strong>{report?.champion ?? "Waiting for final whistle"}</strong>
+      <div className="phase-actions">
+        <button className="secondary-button" disabled={acting} onClick={() => void run(api.closeTransferWindow)}>
+          <CheckCircle2 size={17} />
+          Close transfer window
+        </button>
+      </div>
     </div>
   );
 }
 
-function SquadsPanel({ presidents, players }: { presidents: President[]; players: Player[] }) {
-  const featuredPlayers = useMemo(() => players.slice(0, 10), [players]);
+function TrophyPanel({ matches, report }: { matches: Match[]; report: ChampionshipReport | null }) {
+  const rounds = useMemo(
+    () =>
+      Array.from(new Set(matches.map((match) => match.roundNumber)))
+        .sort((a, b) => a - b)
+        .map((roundNumber) => ({
+          roundNumber,
+          matches: matches.filter((match) => match.roundNumber === roundNumber)
+        })),
+    [matches]
+  );
 
   return (
-    <section className="panel side-panel">
-      <div className="panel-heading small">
-        <div>
-          <p className="section-kicker">Clubs</p>
-          <h2>Squads and market</h2>
-        </div>
-        <Users size={20} />
+    <div className="season-summary">
+      <div className="trophy-card">
+        <Trophy size={46} />
+        <span>Season champion</span>
+        <h2>{report?.champion ?? "Final table pending"}</h2>
+        <p>The season is complete. Every score and the final club statistics are listed below.</p>
       </div>
-      <MiniList title="Presidents" empty="No clubs yet.">
-        {presidents.slice(0, 6).map((president) => (
-          <Row
-            key={president.id}
-            title={president.name}
-            meta={`${president.wins}-${president.draws}-${president.losses}`}
-            value={`${president.points} pts`}
-          />
+
+      <div className="final-standings">
+        <div className="summary-heading">
+          <div>
+            <p className="eyebrow">Final table</p>
+            <h2>Goals summary</h2>
+          </div>
+        </div>
+        <div className="final-table">
+          <div className="final-table-row final-table-head">
+            <span>Pos</span>
+            <span>Club</span>
+            <span>GF</span>
+            <span>GA</span>
+            <span>GD</span>
+          </div>
+          {(report?.standings ?? []).map((standing) => (
+            <div className="final-table-row" key={standing.presidentName}>
+              <b>{standing.position}</b>
+              <strong>{standing.clubName || standing.presidentName}</strong>
+              <span>{standing.goalsFor}</span>
+              <span>{standing.goalsAgainst}</span>
+              <span>{standing.goalDifference > 0 ? `+${standing.goalDifference}` : standing.goalDifference}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="round-results">
+        <div className="summary-heading">
+          <div>
+            <p className="eyebrow">All matches</p>
+            <h2>Results by round</h2>
+          </div>
+          <span>{matches.length} matches</span>
+        </div>
+        {rounds.map((round, index) => (
+          <details className="round-result-card" key={round.roundNumber} open={index === rounds.length - 1}>
+            <summary>
+              <strong>Round {round.roundNumber}</strong>
+              <span>{round.matches.length} matches</span>
+            </summary>
+            <div className="round-result-list">
+              {round.matches.map((match) => (
+                <MatchRow key={match.id} match={match} />
+              ))}
+            </div>
+          </details>
         ))}
-      </MiniList>
-      <MiniList title="Player catalog" empty="No players loaded.">
-        {featuredPlayers.map((player) => (
-          <Row key={player.id} title={player.name} meta={positionLabel(player.position)} value={player.presidentName ?? "Market"} />
-        ))}
-      </MiniList>
-    </section>
+      </div>
+    </div>
   );
 }
 
-function LeaguePanel({ matches, report }: { matches: Match[]; report: ChampionshipReport | null }) {
+function ClubTable({
+  phase,
+  presidents,
+  report
+}: {
+  phase?: GamePhase;
+  presidents: President[];
+  report: ChampionshipReport | null;
+}) {
+  const rows = useMemo(() => {
+    if (report?.standings?.length) {
+      return report.standings.map((standing) => ({
+        ...standing,
+        president: presidents.find((item) => item.name === standing.presidentName)
+      }));
+    }
+    return presidents.map((president, index) => ({
+      position: index + 1,
+      presidentName: president.name,
+      clubName: president.clubName,
+      points: president.points,
+      wins: president.wins,
+      draws: president.draws,
+      losses: president.losses,
+      goalsFor: president.goalsFor,
+      goalsAgainst: president.goalsAgainst,
+      goalDifference: president.goalDifference,
+      matchesPlayed: president.wins + president.draws + president.losses,
+      president
+    }));
+  }, [presidents, report]);
+
+  const showBudget = phase === "DRAFT_AUCTION";
+
   return (
-    <section className="panel side-panel">
-      <div className="panel-heading small">
+    <aside className="panel clubs-panel">
+      <div className="panel-heading compact">
         <div>
-          <p className="section-kicker">League table</p>
-          <h2>Results and reports</h2>
+          <p className="eyebrow">League table</p>
+          <h2>Club positions</h2>
         </div>
-        <Trophy size={20} />
+        {showBudget ? <WalletCards size={21} /> : <Trophy size={21} />}
       </div>
-      <div className="standings">
-        {(report?.standings ?? []).slice(0, 6).map((standing) => (
-          <div className="standing-row" key={standing.presidentName}>
-            <span>{standing.position}</span>
-            <strong>{standing.presidentName}</strong>
-            <b>{standing.points}</b>
+
+      <div className="club-table">
+        <div className={`club-row club-head ${showBudget ? "with-budget" : ""}`}>
+          <span>Pos</span>
+          <span>Club</span>
+          <span>{showBudget ? "Budget" : "Pts"}</span>
+        </div>
+        {rows.map((row) => (
+          <div className={`club-row ${showBudget ? "with-budget" : ""}`} key={row.presidentName}>
+            <span className="position-number">{row.position}</span>
+            <div>
+              <strong>{row.clubName || row.presidentName}</strong>
+              <small>{row.presidentName}</small>
+            </div>
+            <b>{showBudget ? money(row.president?.budget) : row.points}</b>
           </div>
         ))}
-        {!report?.standings?.length && <p className="empty">Standings appear after championship matches.</p>}
+        {!rows.length && <p className="empty-state">Club positions will appear here.</p>}
       </div>
-      <MiniList title="Recent matches" empty="No matches generated.">
-        {matches.slice(0, 5).map((match) => (
-          <MatchRow key={match.id} match={match} />
-        ))}
-      </MiniList>
-    </section>
-  );
-}
-
-function MiniList({ children, empty, title }: { children: ReactNode; empty: string; title: string }) {
-  const hasItems = Array.isArray(children) ? children.length > 0 : Boolean(children);
-  return (
-    <div className="mini-list">
-      <h3>{title}</h3>
-      {hasItems ? children : <p className="empty">{empty}</p>}
-    </div>
-  );
-}
-
-function Row({ meta, title, value }: { meta: string; title: string; value: string }) {
-  return (
-    <article className="data-row">
-      <div>
-        <strong>{title}</strong>
-        <span>{meta}</span>
-      </div>
-      <b>{value}</b>
-    </article>
+    </aside>
   );
 }
 
 function MatchRow({ match }: { match: Match }) {
   return (
-    <article className="match-row">
-      <span>R{match.roundNumber}</span>
-      <strong>{match.homePresident}</strong>
+    <article className="fixture-row">
+      <strong>{match.homeClub || match.homePresident}</strong>
       <b>{match.played ? `${match.homeGoals} - ${match.awayGoals}` : "vs"}</b>
-      <strong>{match.awayPresident}</strong>
+      <strong>{match.awayClub || match.awayPresident}</strong>
     </article>
+  );
+}
+
+function NotificationCard({ feedback, onClose }: { feedback: Feedback; onClose: () => void }) {
+  return (
+    <div className="notification-backdrop" role="dialog" aria-modal="true" aria-live="assertive">
+      <div className={`notification-card ${feedback.kind}`}>
+        <span className="notification-icon">
+          {feedback.kind === "success" ? <CheckCircle2 size={26} /> : <CircleAlert size={26} />}
+        </span>
+        <div>
+          <p className="eyebrow">{feedback.kind === "success" ? "Success" : "Action needed"}</p>
+          <h2>{feedback.kind === "success" ? "Done" : "Something went wrong"}</h2>
+          <p>{feedback.message}</p>
+        </div>
+        <button onClick={onClose}>OK</button>
+      </div>
+    </div>
   );
 }

@@ -22,10 +22,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : undefined;
+  const contentType = response.headers.get("content-type") ?? "";
+  let data: unknown;
+
+  if (text) {
+    if (!contentType.toLowerCase().includes("json")) {
+      throw new Error(
+        `The API endpoint ${path} returned ${contentType || "a non-JSON response"} (${response.status}). ` +
+          "Check whether the Spring backend and the frontend proxy are running."
+      );
+    }
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`The API endpoint ${path} returned invalid JSON.`);
+    }
+  }
 
   if (!response.ok) {
-    const message = data?.message ?? data?.error ?? "Request failed";
+    const payload = data as { message?: string; error?: string } | undefined;
+    const message = payload?.message ?? payload?.error ?? `Request failed (${response.status})`;
     throw new Error(message);
   }
 
@@ -43,8 +60,9 @@ export const api = {
   resetSeason: () => request<ApiMessage<GameState>>("/api/game/reset", { method: "POST" }),
 
   getPresidents: () => request<President[]>("/api/presidents"),
-  createPresident: (payload: { name: string; email: string }) =>
+  createPresident: (payload: { name: string; email: string; clubName: string }) =>
     request<President>("/api/presidents", { method: "POST", body: JSON.stringify(payload) }),
+  createDefaultPresidents: () => request<President[]>("/api/presidents/defaults", { method: "POST" }),
 
   getPlayers: () => request<Player[]>("/api/players"),
   getAvailablePlayers: () => request<Player[]>("/api/players/available"),
