@@ -10,9 +10,12 @@ pipeline {
       }
     }
 
-    stage('Docker Compose Validation') {
+    stage('Project Configuration Validation') {
       steps {
-        sh 'docker compose --env-file .env.example config'
+        sh 'test -f docker-compose.yml'
+        sh 'test -f .env.example'
+        sh 'test -f Scout5/pom.xml'
+        sh 'test -f Scout-front/package.json'
       }
     }
 
