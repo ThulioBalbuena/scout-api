@@ -1,28 +1,34 @@
 pipeline {
   agent any
   stages {
-    stage('Build Frontend') {
+    stage('Backend Tests') {
       steps {
-        dir('Scout-front') {
-          sh 'npm ci'
-          sh 'npm run build'
+        dir('Scout5') {
+          sh './mvnw test'
         }
       }
     }
-    stage('Build backend') {
+
+    stage('Docker Compose Validation') {
+      steps {
+        sh 'docker compose --env-file .env.example config'
+      }
+    }
+
+    stage('Build Backend') {
       steps {
         dir('Scout5') {
           sh './mvnw package -DskipTests'
         }
       }
     }
-    stage('Backend teste') {
+
+    stage('Build Frontend') {
       steps {
-        dir('Scout5') {
-          sh 'mvn test'
+        dir('Scout-front') {
+          sh 'npm run build'
         }
       }
     }
-
   }
 }
